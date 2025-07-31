@@ -6,6 +6,8 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: rabbitmq
       RABBITMQ_DEFAULT_PASS: rabbitmq
+      RABBITMQ_ERLANG_COOKIE: "SWQOKODSQALRPCLNMEQG"
+      RABBITMQ_NODE_TYPE: stats
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -40,6 +42,7 @@ services:
     command: npm run start
     volumes:
       - ./nestjs-service:/app
+      - nestjs-node-modules:/app/node_modules
     ports:
       - "3000:3000"
     environment:
@@ -100,3 +103,4 @@ services:
 volumes:
   postgres-data:
   rabbitmq-data:
+  nestjs-node-modules:
