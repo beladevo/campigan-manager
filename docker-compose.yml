@@ -44,8 +44,13 @@ services:
       - "3000:3000"
     environment:
       - POSTGRES_HOST=postgres
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=solara
       - RABBITMQ_URL=amqp://rabbitmq:rabbitmq@rabbitmq:5672
+      - NODE_ENV=development
+      - LOG_LEVEL=info
     depends_on:
       postgres:
         condition: service_healthy
@@ -62,9 +67,11 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - POSTGRES_HOST=postgres
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - RABBITMQ_URL=amqp://rabbitmq:rabbitmq@rabbitmq:5672
+      - OUTPUT_DIR=/app/output
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8000
+      - LOG_LEVEL=INFO
     depends_on:
       postgres:
         condition: service_healthy
@@ -77,14 +84,17 @@ services:
     command: python main.py
     volumes:
       - ./python-worker:/app
-      - ./output:/app/output
     environment:
-      - POSTGRES_HOST=postgres
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
       - RABBITMQ_URL=amqp://rabbitmq:rabbitmq@rabbitmq:5672
+      - GENERATOR_URL=http://python-generator:8000
+      - LOG_LEVEL=INFO
+      - HEALTH_CHECK_INTERVAL=30
+      - RABBITMQ_TIMEOUT=300
     depends_on:
       rabbitmq:
         condition: service_healthy
+      python-generator:
+        condition: service_started
     restart: unless-stopped
 
 volumes:

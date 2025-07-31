@@ -1,8 +1,9 @@
-import os
 import json
 import logging
 from typing import Tuple, Dict, Any
 import httpx
+
+from config import config
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +12,7 @@ def parse_campaign_message(raw_body: str) -> Tuple[str, str]:
     """Parse campaign message from various formats."""
     data = json.loads(raw_body)
     logger.info(f"Parsed message data: {data}")
-    
+
     # Handle different message formats
     if isinstance(data, dict):
         # Direct format: {"campaignId": "...", "prompt": "..."}
@@ -32,22 +33,25 @@ def parse_campaign_message(raw_body: str) -> Tuple[str, str]:
             raise ValueError(f"Unrecognized message format: {data}")
     else:
         raise ValueError(f"Expected dict, got: {type(data)}")
-    
+
     return campaign_id, prompt
 
 
-async def make_http_request(method: str, url: str, data: Dict[str, Any] = None) -> Dict[str, Any]:
+async def make_http_request(
+    method: str, url: str, data: Dict[str, Any] = None
+) -> Dict[str, Any]:
     """Make HTTP request to python-generator service."""
-    generator_url = os.getenv("GENERATOR_URL", "http://python-generator:8000")
-    full_url = f"{generator_url}{url}"
-    
-    async with httpx.AsyncClient(timeout=300.0) as client:  # 5 minute timeout for AI generation
+    full_url = f"{config.generator_url}{url}"
+
+    async with httpx.AsyncClient(
+        timeout=config.rabbitmq_connection_timeout
+    ) as client:  # Configurable timeout
         if method.upper() == "POST":
             response = await client.post(full_url, json=data)
         elif method.upper() == "GET":
             response = await client.get(full_url)
         else:
             raise ValueError(f"Unsupported HTTP method: {method}")
-        
+
         response.raise_for_status()
         return response.json()
