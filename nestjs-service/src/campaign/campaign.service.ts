@@ -8,7 +8,7 @@ import { CreateCampaignDto } from './dto/create-campaign.dto';
 @Injectable()
 export class CampaignService {
   private readonly logger = new Logger(CampaignService.name);
-  private readonly pythonServiceUrl = process.env.PYTHON_SERVICE_URL || 'http://python-generator:8000';
+  private readonly pythonServiceUrl = process.env.PYTHON_SERVICE_URL || 'http://localhost:8000';
   
   constructor(
     @InjectRepository(Campaign)

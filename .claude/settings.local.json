@@ -6,7 +6,10 @@
       "Bash(docker-compose:*)",
       "Bash(python test:*)",
       "Bash(curl:*)",
-      "WebFetch(domain:ai.google.dev)"
+      "WebFetch(domain:ai.google.dev)",
+      "Bash(python:*)",
+      "Bash(timeout:*)",
+      "Bash(npm run start:*)"
     ],
     "deny": []
   }
