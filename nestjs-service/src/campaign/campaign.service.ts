@@ -60,38 +60,46 @@ export class CampaignService {
 
   @EventPattern('campaign.result')
   async handleCampaignResult(message: any): Promise<void> {
-    console.log("🚀 ~ CampaignService ~ handleCampaignResult ~ message:", message)
+    this.logger.log(`Received campaign result message: ${JSON.stringify(message)}`);
     
-    // Handle both direct format and NestJS microservice format
-    let data: CampaignResultMessage;
-    if (message.data) {
-      // NestJS microservice format: { pattern: "campaign.result", data: {...} }
-      data = message.data;
-    } else if (message.campaignId) {
-      // Direct format: { campaignId, generatedText, imagePath, error }
-      data = message;
-    } else {
-      this.logger.error('Invalid message format:', message);
-      return;
-    }
-    
-    const { campaignId, generatedText, imagePath, error } = data;
+    let campaignData: CampaignResultMessage;
     
     try {
+      // Handle different message formats
+      if (message.data) {
+        // NestJS microservice format: {pattern: "campaign.result", data: {...}}
+        campaignData = message.data;
+      } else if (message.campaignId) {
+        // Direct format
+        campaignData = message;
+      } else {
+        this.logger.error(`Invalid message format received: ${JSON.stringify(message)}`);
+        return;
+      }
+      
+      const { campaignId, generatedText, imagePath, error } = campaignData;
+      this.logger.log(`Processing campaign result for ID: ${campaignId}`);
+      
       if (error) {
         this.logger.error(`Campaign ${campaignId} failed: ${error}`);
         await this.updateCampaignStatus(campaignId, CampaignStatus.FAILED, error);
       } else {
         this.logger.log(`Campaign ${campaignId} completed successfully`);
+        this.logger.log(`Generated text length: ${generatedText?.length || 0}`);
+        this.logger.log(`Image path: ${imagePath}`);
+        
         await this.campaignRepository.update(campaignId, {
           status: CampaignStatus.COMPLETED,
           generatedText,
           imagePath,
           errorMessage: null,
         });
+        
+        this.logger.log(`Database updated successfully for campaign ${campaignId}`);
       }
     } catch (dbError) {
-      this.logger.error(`Failed to update campaign ${campaignId} in database:`, dbError);
+      this.logger.error(`Failed to update campaign ${campaignData?.campaignId || 'unknown'} in database:`, dbError);
+      this.logger.error(`Database error stack: ${dbError.stack}`);
       // Could potentially publish to a dead letter queue here
     }
   }
