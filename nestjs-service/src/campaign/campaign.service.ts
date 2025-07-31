@@ -1,18 +1,20 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import axios from 'axios';
+import { EventPattern } from '@nestjs/microservices';
 import { Campaign, CampaignStatus } from './entities/campaign.entity';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
+import { RabbitMQService } from '../rabbitmq/rabbitmq.service';
+import { CampaignResultMessage } from '../rabbitmq/types';
 
 @Injectable()
 export class CampaignService {
   private readonly logger = new Logger(CampaignService.name);
-  private readonly pythonServiceUrl = process.env.PYTHON_SERVICE_URL || 'http://localhost:8000';
   
   constructor(
     @InjectRepository(Campaign)
     private campaignRepository: Repository<Campaign>,
+    private rabbitMQService: RabbitMQService,
   ) {}
   
   async create(createCampaignDto: CreateCampaignDto): Promise<Campaign> {
@@ -20,14 +22,28 @@ export class CampaignService {
       ...createCampaignDto,
       status: CampaignStatus.PENDING,
     });
-    console.log("🚀 ~ CampaignService ~ pythonServiceUrl:", this.pythonServiceUrl)
 
     const savedCampaign = await this.campaignRepository.save(campaign);
     this.logger.log(`Campaign created with ID: ${savedCampaign.id}`);
 
-    this.processWithRetry(savedCampaign.id).catch(error => {
-      this.logger.error(`Failed to process campaign ${savedCampaign.id}:`, error);
-    });
+    // Publish to queue
+    try {
+      await this.rabbitMQService.publishCampaignGeneration({
+        campaignId: savedCampaign.id,
+        prompt: savedCampaign.prompt,
+      });
+      
+      // Update status to indicate it's been queued
+      await this.updateCampaignStatus(savedCampaign.id, CampaignStatus.PROCESSING);
+      this.logger.log(`Campaign ${savedCampaign.id} queued for processing`);
+    } catch (error) {
+      this.logger.error(`Failed to queue campaign ${savedCampaign.id}:`, error);
+      await this.updateCampaignStatus(
+        savedCampaign.id, 
+        CampaignStatus.FAILED, 
+        `Failed to queue: ${error.message}`
+      );
+    }
 
     return savedCampaign;
   }
@@ -40,60 +56,26 @@ export class CampaignService {
     return campaign;
   }
 
-  private async processWithRetry(campaignId: string, maxRetries = 3): Promise<void> {
-    let attempt = 0;
-    
-    while (attempt < maxRetries) {
-      try {
-        await this.processCampaign(campaignId);
-        return;
-      } catch (error) {
-        attempt++;
-        this.logger.warn(`Attempt ${attempt} failed for campaign ${campaignId}:`, error.message);
-        
-        if (attempt >= maxRetries) {
-          await this.updateCampaignStatus(
-            campaignId, 
-            CampaignStatus.FAILED, 
-            `Failed after ${maxRetries} attempts: ${error.message}`
-          );
-          throw error;
-        }
-        
-        const delay = Math.pow(2, attempt) * 1000;
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
-  }
-
-  private async processCampaign(campaignId: string): Promise<void> {
-    this.logger.log(`Processing campaign ${campaignId}`);
-    
-    await this.updateCampaignStatus(campaignId, CampaignStatus.PROCESSING);
-
-    const campaign = await this.findOne(campaignId);
+  @EventPattern('campaign.result')
+  async handleCampaignResult(message: CampaignResultMessage): Promise<void> {
+    const { campaignId, generatedText, imagePath, error } = message;
     
     try {
-      const response = await axios.post(`${this.pythonServiceUrl}/generate`, {
-        campaignId: campaign.id,
-        prompt: campaign.prompt,
-      }, {
-        timeout: 300000,
-      });
-
-      const { generatedText, imagePath } = response.data;
-      
-      await this.campaignRepository.update(campaignId, {
-        status: CampaignStatus.COMPLETED,
-        generatedText,
-        imagePath,
-        errorMessage: null,
-      });
-
-      this.logger.log(`Campaign ${campaignId} completed successfully`);
-    } catch (error) {
-      this.logger.error(`Campaign ${campaignId} processing failed:`, error);
-      throw error;
+      if (error) {
+        this.logger.error(`Campaign ${campaignId} failed: ${error}`);
+        await this.updateCampaignStatus(campaignId, CampaignStatus.FAILED, error);
+      } else {
+        this.logger.log(`Campaign ${campaignId} completed successfully`);
+        await this.campaignRepository.update(campaignId, {
+          status: CampaignStatus.COMPLETED,
+          generatedText,
+          imagePath,
+          errorMessage: null,
+        });
+      }
+    } catch (dbError) {
+      this.logger.error(`Failed to update campaign ${campaignId} in database:`, dbError);
+      // Could potentially publish to a dead letter queue here
     }
   }
 

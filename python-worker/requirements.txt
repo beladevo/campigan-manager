@@ -1,1 +1,8 @@
 aio-pika
+google-genai
+pillow
+requests
+python-multipart
+asyncio
+pathlib
+psycopg2-binary
