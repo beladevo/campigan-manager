@@ -17,7 +17,6 @@ async def send_result(channel, result_queue, result_data: Dict[str, Any]):
         logger.info(f"[{campaign_id}] Sending result back to NestJS service")
         logger.debug(f"[{campaign_id}] Result data: {result_data}")
         
-        # Format for NestJS microservice compatibility
         nestjs_message = {
             "pattern": "campaign.result",
             "data": result_data
@@ -30,7 +29,6 @@ async def send_result(channel, result_queue, result_data: Dict[str, Any]):
             headers={'pattern': 'campaign.result'}
         )
         
-        # Publish directly to the result queue
         await channel.default_exchange.publish(
             message, routing_key=result_queue.name
         )

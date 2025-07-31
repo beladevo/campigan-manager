@@ -80,7 +80,6 @@ def create_enhanced_placeholder(campaign_id: str, output_dir: Path, prompt: str 
         img = Image.new('RGB', (1024, 1024), color='#f0f8ff')
         draw = ImageDraw.Draw(img)
         
-        # Add gradient background
         for y in range(img.height):
             gradient_color = int(240 + (y / img.height) * 15)
             draw.line([(0, y), (img.width, y)], fill=(gradient_color, gradient_color + 8, 255))
@@ -90,7 +89,6 @@ def create_enhanced_placeholder(campaign_id: str, output_dir: Path, prompt: str 
         except:
             font = None
         
-        # Add text
         text_lines = [
             "SOLARA AI",
             "Content Generation",

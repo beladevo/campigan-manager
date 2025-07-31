@@ -22,16 +22,13 @@ async def process_campaign_message(
             raw_body = message.body.decode()
             logger.info(f"Received raw message: {raw_body}")
 
-            # Parse message using utility function
             campaign_id, prompt = parse_campaign_message(raw_body)
 
             logger.info(f"[{campaign_id}] Processing campaign generation request")
             logger.info(f"[{campaign_id}] Prompt: {prompt}")
 
-            # Delegate content generation to python-generator service
             result = await delegate_to_generator(campaign_id, prompt)
 
-            # Send result back via RabbitMQ
             await send_result(channel, result_queue, result)
 
             logger.info(f"[{campaign_id}] Campaign processing completed successfully")
@@ -40,7 +37,6 @@ async def process_campaign_message(
             logger.error(f"Error processing campaign message: {e}")
             logger.error(f"Raw message body: {message.body.decode()}")
 
-            # Send error result
             try:
                 raw_body = message.body.decode()
                 campaign_id = extract_campaign_id_from_error(raw_body)
@@ -62,10 +58,8 @@ async def delegate_to_generator(campaign_id: str, prompt: str) -> Dict[str, Any]
     try:
         logger.info(f"[{campaign_id}] Delegating to python-generator service")
 
-        # Prepare request for python-generator service
         generator_request = {"campaignId": campaign_id, "prompt": prompt}
 
-        # Make HTTP request to python-generator
         response = await make_http_request(
             method="POST", url="/generate", data=generator_request
         )

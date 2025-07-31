@@ -18,7 +18,6 @@ from utils import (
     process_image_response,
 )
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - [%(funcName)s:%(lineno)d] - %(message)s",
@@ -72,13 +71,10 @@ class GeneratorService:
 
     def _initialize_models(self):
         """Initialize Gemini models with proper validation."""
-        # Text generation model
         self.text_model_name = config.text_model_name
 
-        # Image generation model
         self.image_model_name = config.image_model_name
 
-        # Test model availability
         try:
             self._validate_models()
             logger.info("Gemini models validated successfully")
@@ -88,7 +84,6 @@ class GeneratorService:
     def _validate_models(self):
         """Validate that required models are available."""
         try:
-            # Test text model with minimal request
             test_response = self.client.models.generate_content(
                 model=self.text_model_name,
                 contents="Hello",
@@ -98,7 +93,6 @@ class GeneratorService:
             )
             logger.info("Text model validation successful")
 
-            # Test image model with minimal request
             test_image_response = self.client.models.generate_content(
                 model=self.image_model_name,
                 contents="Generate a small red circle",
@@ -129,24 +123,21 @@ class GeneratorService:
                 f"[{campaign_id}] Starting text generation for prompt: {prompt[:50]}..."
             )
 
-            # Enhanced prompt for marketing content generation
             enhanced_prompt = create_marketing_prompt(prompt)
 
-            # Generate content with optimal configuration
             response = await asyncio.to_thread(
                 self.client.models.generate_content,
                 model=self.text_model_name,
                 contents=enhanced_prompt,
                 config=types.GenerateContentConfig(
-                    max_output_tokens=1500,  # Optimal for marketing content
-                    temperature=0.7,  # Balance creativity and coherence
-                    top_p=0.9,  # Nucleus sampling for quality
-                    top_k=40,  # Limit vocabulary for focus
-                    stop_sequences=["\n\n---", "\n\nEND"],  # Natural stopping points
+                    max_output_tokens=1500,
+                    temperature=0.7,
+                    top_p=0.9,
+                    top_k=40,
+                    stop_sequences=["\n\n---", "\n\nEND"],
                 ),
             )
 
-            # Validate and extract response
             if not response.candidates or not response.candidates[0].content.parts:
                 raise ValueError("Empty response from Gemini text model")
 
@@ -181,10 +172,8 @@ class GeneratorService:
                 f"[{campaign_id}] Starting image generation for prompt: {prompt[:50]}..."
             )
 
-            # Create optimized image generation prompt
             image_prompt = create_image_prompt(prompt)
 
-            # Generate image with multimodal configuration
             response = await asyncio.to_thread(
                 self.client.models.generate_content,
                 model=self.image_model_name,
@@ -193,14 +182,13 @@ class GeneratorService:
                     response_modalities=[
                         "TEXT",
                         "IMAGE",
-                    ],  # Required for image generation
-                    max_output_tokens=200,  # For descriptive text
-                    temperature=0.8,  # Higher creativity for images
-                    top_p=0.95,  # More diverse outputs
+                    ],
+                    max_output_tokens=200,
+                    temperature=0.8,
+                    top_p=0.95,
                 ),
             )
 
-            # Process multimodal response
             image_path = await self._process_image_response(
                 response, campaign_id, prompt
             )
@@ -248,7 +236,6 @@ class GeneratorService:
         }
 
 
-# Initialize service
 try:
     generator_service = GeneratorService()
     logger.info("Generator service initialized successfully")
@@ -275,11 +262,9 @@ async def generate_content(request: GenerationRequest):
     logger.info(f"[{campaign_id}] Prompt: {prompt}")
 
     try:
-        # Generate text and image concurrently for better performance
         text_task = generator_service.generate_text(prompt, campaign_id)
         image_task = generator_service.generate_image(prompt, campaign_id)
 
-        # Await both tasks
         generated_text, image_path = await asyncio.gather(text_task, image_task)
 
         logger.info(

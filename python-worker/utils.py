@@ -13,7 +13,6 @@ def parse_campaign_message(raw_body: str) -> Tuple[str, str]:
     data = json.loads(raw_body)
     logger.info(f"Parsed message data: {data}")
 
-    # Handle different message formats
     if isinstance(data, dict):
         # Direct format: {"campaignId": "...", "prompt": "..."}
         if "campaignId" in data and "prompt" in data:
@@ -45,7 +44,7 @@ async def make_http_request(
 
     async with httpx.AsyncClient(
         timeout=config.rabbitmq_connection_timeout
-    ) as client:  # Configurable timeout
+    ) as client:
         if method.upper() == "POST":
             response = await client.post(full_url, json=data)
         elif method.upper() == "GET":

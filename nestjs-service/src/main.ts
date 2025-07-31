@@ -11,13 +11,10 @@ async function bootstrap() {
   const logger = new Logger("Bootstrap");
 
   try {
-    // Create hybrid application (HTTP + Microservice)
     const app = await NestFactory.create(AppModule);
 
-    // Get configuration service
     const configService = app.get(ConfigService);
 
-    // Enable global validation
     app.useGlobalPipes(
       new ValidationPipe({
         transform: true,
@@ -26,7 +23,6 @@ async function bootstrap() {
       })
     );
 
-    // Connect microservice for RabbitMQ message consumption
     logger.log(
       `Attempting to connect to RabbitMQ at: ${configService.rabbitmqUrlForLogging}`
     );
@@ -46,7 +42,6 @@ async function bootstrap() {
       },
     });
 
-    // Start both HTTP server and microservice
     await app.startAllMicroservices();
     await app.listen(configService.port);
 
