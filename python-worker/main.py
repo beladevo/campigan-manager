@@ -249,14 +249,15 @@ class CampaignWorker:
             message = Message(
                 json.dumps(result_data).encode(),
                 message_id=campaign_id,
-                timestamp=datetime.now()
+                timestamp=datetime.now(),
+                headers={'pattern': 'campaign.result'}
             )
             
             # Publish directly to the result queue
             await self.channel.default_exchange.publish(
-                message, routing_key="campaign.result"
+                message, routing_key=self.result_queue.name
             )
-            logger.info(f"[{campaign_id}] Result sent successfully")
+            logger.info(f"[{campaign_id}] Result sent successfully to queue: {self.result_queue.name}")
             
         except Exception as e:
             logger.error(f"[{campaign_id}] Failed to send result: {e}")
