@@ -7,7 +7,7 @@ import { RabbitMQModule } from '../rabbitmq/rabbitmq.module';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Campaign]), RabbitMQModule],
-  controllers: [CampaignController],
+  controllers: [CampaignController, CampaignService],
   providers: [CampaignService],
 })
 export class CampaignModule {}

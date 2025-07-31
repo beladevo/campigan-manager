@@ -69,13 +69,4 @@ export class RabbitMQService implements OnApplicationShutdown {
     }
   }
 
-  async publishCampaignResult(message: CampaignResultMessage): Promise<void> {
-    try {
-      await this.client.emit('campaign.result', message).toPromise();
-      this.logger.log(`Published campaign result message for campaign: ${message.campaignId}`);
-    } catch (error) {
-      this.logger.error(`Failed to publish campaign result message: ${error}`);
-      throw error;
-    }
-  }
 }

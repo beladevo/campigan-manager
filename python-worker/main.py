@@ -245,9 +245,16 @@ class CampaignWorker:
                 "imagePath": image_path,
                 "error": error
             }
+            logger.warning("result_data", result_data)
+            
+            # NestJS microservice format with pattern and data
+            nestjs_message = {
+                "pattern": "campaign.result",
+                "data": result_data
+            }
             
             message = Message(
-                json.dumps(result_data).encode(),
+                json.dumps(nestjs_message).encode(),
                 message_id=campaign_id,
                 timestamp=datetime.now(),
                 headers={'pattern': 'campaign.result'}
