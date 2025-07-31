@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "*",
+      "Bash(docker-compose up:*)",
+      "Bash(docker-compose:*)",
+      "Bash(python test:*)",
+      "Bash(curl:*)",
+      "WebFetch(domain:ai.google.dev)"
+    ],
+    "deny": []
+  }
+}
