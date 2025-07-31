@@ -1,18 +1,22 @@
 import os
 import logging
-import uuid
 import asyncio
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any, Tuple
-from io import BytesIO
+from typing import Optional, Dict, Any
 
 from google import genai
 from google.genai import types
-from PIL import Image, ImageDraw, ImageFont
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 import uvicorn
+
+from utils import (
+    create_marketing_prompt,
+    create_image_prompt,
+    create_enhanced_placeholder,
+    process_image_response
+)
 
 # Configure logging
 logging.basicConfig(
@@ -124,7 +128,7 @@ class GeneratorService:
             logger.info(f"[{campaign_id}] Starting text generation for prompt: {prompt[:50]}...")
             
             # Enhanced prompt for marketing content generation
-            enhanced_prompt = self._create_marketing_prompt(prompt)
+            enhanced_prompt = create_marketing_prompt(prompt)
             
             # Generate content with optimal configuration
             response = await asyncio.to_thread(
@@ -159,56 +163,6 @@ class GeneratorService:
                 detail=f"Text generation failed: {str(e)}"
             )
     
-    def _create_marketing_prompt(self, user_prompt: str) -> str:
-        """Create an enhanced prompt optimized for marketing content generation."""
-        return f"""
-You are a world-class marketing strategist and copywriter with expertise in persuasive content creation. Your task is to transform the given prompt into compelling marketing content that drives engagement and conversions.
-
-**ORIGINAL REQUEST:** {user_prompt}
-
-**YOUR MISSION:** Create comprehensive marketing content that includes:
-
-**1. ATTENTION-GRABBING HEADLINE**
-- Craft a powerful, benefit-driven headline that immediately captures attention
-- Use action words, emotional triggers, and clear value propositions
-- Make it memorable and shareable
-
-**2. COMPELLING DESCRIPTION**
-- Write vivid, sensory-rich descriptions that paint a clear mental picture
-- Use storytelling elements to create emotional connection
-- Include specific details that make the content tangible and relatable
-- Address pain points and position the solution naturally
-
-**3. KEY BENEFITS & FEATURES**
-- Highlight 3-5 primary benefits that matter most to the target audience
-- Transform features into customer-focused benefits
-- Use social proof indicators where relevant
-- Create urgency or scarcity when appropriate
-
-**4. STRATEGIC CALL-TO-ACTION**
-- Provide multiple CTA options for different customer journey stages
-- Use action-oriented, specific language
-- Create clear next steps for engagement
-
-**5. AUDIENCE PSYCHOLOGY**
-- Identify and address the primary target demographic
-- Consider emotional motivators and rational justifiers
-- Include language that resonates with their values and aspirations
-
-**CONTENT REQUIREMENTS:**
-✓ Emotionally engaging and persuasive
-✓ Professional yet conversational tone
-✓ Multi-channel adaptable (social, email, web, print)
-✓ SEO-friendly with natural keyword integration
-✓ Scannable format with clear hierarchy
-✓ Rich descriptive language for visual content inspiration
-✓ Authentic and trustworthy messaging
-
-**OUTPUT FORMAT:**
-Organize your response with clear sections and compelling copy that's ready for immediate use across marketing channels.
-
-Begin creating exceptional marketing content now:
-"""
     
     async def generate_image(self, prompt: str, campaign_id: str) -> str:
         """
@@ -224,7 +178,7 @@ Begin creating exceptional marketing content now:
             logger.info(f"[{campaign_id}] Starting image generation for prompt: {prompt[:50]}...")
             
             # Create optimized image generation prompt
-            image_prompt = self._create_image_prompt(prompt)
+            image_prompt = create_image_prompt(prompt)
             
             # Generate image with multimodal configuration
             response = await asyncio.to_thread(
@@ -247,166 +201,18 @@ Begin creating exceptional marketing content now:
                 return image_path
             else:
                 logger.warning(f"[{campaign_id}] No image generated, creating placeholder")
-                return self._create_enhanced_placeholder(campaign_id, prompt)
+                return create_enhanced_placeholder(campaign_id, self.output_dir, prompt)
             
         except Exception as e:
             logger.error(f"[{campaign_id}] Image generation failed: {e}")
             logger.info(f"[{campaign_id}] Falling back to enhanced placeholder")
-            return self._create_enhanced_placeholder(campaign_id, prompt)
+            return create_enhanced_placeholder(campaign_id, self.output_dir, prompt)
     
-    def _create_image_prompt(self, user_prompt: str) -> str:
-        """Create an optimized prompt for image generation."""
-        return f"""
-Create a stunning, professional-grade marketing image based on this concept: {user_prompt}
-
-**VISUAL CONCEPT REQUIREMENTS:**
-🎯 **Style & Aesthetics:**
-- Premium commercial photography or high-end digital art style
-- Modern, clean, and sophisticated aesthetic
-- Award-winning composition with rule of thirds
-- Professional color grading and balanced exposure
-
-🎨 **Color & Lighting:**
-- Vibrant yet sophisticated color palette
-- Dramatic, cinematic lighting with perfect shadows and highlights
-- Rich contrast and visual depth
-- Colors that evoke emotion and brand trust
-
-📸 **Technical Specifications:**
-- Ultra-high resolution (4K+ quality)
-- Crystal-sharp focus with bokeh background where appropriate
-- Perfect white balance and color accuracy
-- Commercial-grade image quality suitable for large format printing
-
-🎭 **Composition & Elements:**
-- Dynamic, engaging composition that draws the eye
-- Clear focal point with supporting visual elements
-- Negative space for text overlay compatibility
-- Professional product photography or lifestyle imagery standards
-
-🌟 **Marketing Impact:**
-- Emotionally compelling and aspirational
-- Instantly recognizable and memorable
-- Social media and advertising optimized
-- Cross-platform compatible design
-
-**CREATIVE DIRECTION:**
-Transform the concept "{user_prompt}" into a visual masterpiece that would be featured in premium marketing campaigns, luxury brand advertisements, or award-winning creative portfolios.
-
-**QUALITY BENCHMARKS:**
-- Should rival work from top creative agencies
-- Suitable for billboards, premium print materials, and high-end digital campaigns
-- Professional enough for Fortune 500 marketing materials
-- Artistically compelling enough for creative awards consideration
-
-Generate an exceptional, commercially-viable marketing image now:
-"""
     
     async def _process_image_response(self, response, campaign_id: str, prompt: str) -> Optional[str]:
         """Process multimodal response and extract image data."""
-        try:
-            if not response.candidates or not response.candidates[0].content.parts:
-                return None
-            
-            for part in response.candidates[0].content.parts:
-                # Handle text part
-                if part.text is not None:
-                    logger.info(f"[{campaign_id}] Generated image description: {part.text[:100]}...")
-                
-                # Handle image part
-                elif part.inline_data is not None:
-                    logger.info(f"[{campaign_id}] Processing generated image data...")
-                    
-                    # Convert image data
-                    image_data = part.inline_data.data
-                    image = Image.open(BytesIO(image_data))
-                    
-                    # Generate unique filename
-                    filename = f"campaign_{campaign_id}_{uuid.uuid4().hex[:8]}.png"
-                    image_path = self.output_dir / filename
-                    
-                    # Save with optimization
-                    image.save(image_path, "PNG", optimize=True, quality=95)
-                    
-                    # Log image details
-                    logger.info(f"[{campaign_id}] Image saved: {image_path} ({image.size[0]}x{image.size[1]})")
-                    return str(image_path)
-            
-            return None
-            
-        except Exception as e:
-            logger.error(f"[{campaign_id}] Failed to process image response: {e}")
-            return None
+        return process_image_response(response, campaign_id, self.output_dir, prompt)
     
-    def _create_enhanced_placeholder(self, campaign_id: str, prompt: str = "") -> str:
-        """Create an enhanced placeholder image with professional appearance."""
-        try:
-            # Create high-quality placeholder
-            img = Image.new('RGB', (1024, 1024), color='#f0f8ff')  # Alice blue
-            draw = ImageDraw.Draw(img)
-            
-            # Add gradient background
-            for y in range(img.height):
-                gradient_color = int(240 + (y / img.height) * 15)  # Subtle gradient
-                draw.line([(0, y), (img.width, y)], fill=(gradient_color, gradient_color + 8, 255))
-            
-            # Load font
-            try:
-                font_large = ImageFont.load_default()
-                font_small = ImageFont.load_default()
-            except:
-                font_large = font_small = None
-            
-            # Add professional text
-            text_lines = [
-                "SOLARA AI",
-                "Content Generation",
-                "",
-                f"Campaign: {campaign_id[:12]}",
-                f"Prompt: {prompt[:40]}{'...' if len(prompt) > 40 else ''}",
-                "",
-                f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-            ]
-            
-            # Center text vertically
-            total_height = len([line for line in text_lines if line]) * 40
-            start_y = (img.height - total_height) // 2
-            
-            for i, line in enumerate(text_lines):
-                if line:
-                    # Calculate text position for centering
-                    bbox = draw.textbbox((0, 0), line, font=font_large)
-                    text_width = bbox[2] - bbox[0]
-                    x = (img.width - text_width) // 2
-                    y = start_y + (i * 40)
-                    
-                    # Add shadow effect
-                    draw.text((x + 2, y + 2), line, fill='#cccccc', font=font_large)
-                    draw.text((x, y), line, fill='#333333', font=font_large)
-            
-            # Save placeholder
-            filename = f"enhanced_placeholder_{campaign_id}_{uuid.uuid4().hex[:8]}.png"
-            image_path = self.output_dir / filename
-            img.save(image_path, "PNG", optimize=True)
-            
-            logger.info(f"[{campaign_id}] Enhanced placeholder created: {image_path}")
-            return str(image_path)
-            
-        except Exception as e:
-            logger.error(f"[{campaign_id}] Failed to create enhanced placeholder: {e}")
-            # Fallback to simple placeholder
-            return self._create_simple_fallback(campaign_id)
-    
-    def _create_simple_fallback(self, campaign_id: str) -> str:
-        """Create a simple fallback image if all else fails."""
-        try:
-            img = Image.new('RGB', (512, 512), color='lightblue')
-            filename = f"fallback_{campaign_id}_{uuid.uuid4().hex[:8]}.png"
-            image_path = self.output_dir / filename
-            img.save(image_path)
-            return str(image_path)
-        except Exception:
-            return ""
     
     def get_health_status(self) -> Dict[str, Any]:
         """Get comprehensive health status of the service."""
