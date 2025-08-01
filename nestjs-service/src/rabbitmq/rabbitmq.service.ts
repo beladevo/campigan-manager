@@ -4,8 +4,8 @@ import {
   ClientProxyFactory,
   Transport,
 } from "@nestjs/microservices";
-import { ConfigService } from "@nestjs/config";
 import { CampaignGenerationMessage, CampaignResultMessage } from "./types";
+import { ConfigService } from "../config/config.service";
 
 @Injectable()
 export class RabbitMQService implements OnApplicationShutdown {
@@ -77,19 +77,6 @@ export class RabbitMQService implements OnApplicationShutdown {
       );
       this.logger.error(`Error stack: ${error.stack}`);
       throw error;
-    }
-  }
-
-  async setupDeadLetterExchange(): Promise<void> {
-    try {
-      // This would typically be done during application startup
-      // or as part of infrastructure setup
-      this.logger.log('Dead letter exchange setup would be handled by infrastructure');
-    } catch (error) {
-      this.logger.error('Failed to setup dead letter exchange', {
-        error: error.message,
-        stack: error.stack,
-      });
     }
   }
 }
