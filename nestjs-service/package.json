@@ -2,8 +2,9 @@
   "name": "nestjs-service",
   "version": "0.0.1",
   "scripts": {
-    "start": "ts-node src/main.ts",
-    "start:dev": "nodemon --watch src --ext ts --exec ts-node src/main.ts"
+    "build": "npx tsc",
+    "start": "npm run build && node dist/main.js",
+    "start:dev": "nodemon --watch src --ext ts --exec npm run start"
   },
   "dependencies": {
     "@nestjs/common": "^9.0.0",
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@types/amqplib": "^0.10.7",
+    "@types/node": "^18.0.0",
     "@types/uuid": "^9.0.0"
   }
 }
