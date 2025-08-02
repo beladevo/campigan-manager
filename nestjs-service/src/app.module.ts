@@ -27,5 +27,3 @@ import { ClientsModule, Transport } from "@nestjs/microservices";
   ],
 })
 export class AppModule {}
-
-// dead letter queue

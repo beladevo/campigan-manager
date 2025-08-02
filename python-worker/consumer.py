@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 async def process_campaign_message(
     message: aio_pika.abc.AbstractIncomingMessage, channel, result_queue
 ):
-    """Process incoming campaign generation message and delegate to python-generator."""
     async with message.process():
         try:
             raw_body = message.body.decode()
@@ -54,7 +53,6 @@ async def process_campaign_message(
 
 
 async def delegate_to_generator(campaign_id: str, prompt: str) -> Dict[str, Any]:
-    """Delegate content generation to python-generator service via HTTP."""
     try:
         logger.info(f"[{campaign_id}] Delegating to python-generator service")
 
@@ -84,7 +82,6 @@ async def delegate_to_generator(campaign_id: str, prompt: str) -> Dict[str, Any]
 
 
 def extract_campaign_id_from_error(raw_body: str) -> str:
-    """Extract campaign ID from raw message body for error reporting."""
     try:
         data = json.loads(raw_body)
 

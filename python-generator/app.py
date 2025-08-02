@@ -17,6 +17,7 @@ from utils import (
     create_enhanced_placeholder,
     process_image_response,
 )
+from exponential_backoff import with_exponential_backoff, RetryOptions
 
 logging.basicConfig(
     level=logging.INFO,
@@ -45,9 +46,6 @@ class GenerationResponse(BaseModel):
 
 
 class GeneratorService:
-    """
-    Advanced Gemini 2.0 Flash service implementing best practices for text and image generation.
-    """
 
     def __init__(self):
         self._initialize_api()
@@ -55,7 +53,6 @@ class GeneratorService:
         self._initialize_models()
 
     def _initialize_api(self):
-        """Initialize Gemini API with proper error handling."""
         try:
             self.client = genai.Client(api_key=config.gemini_api_key)
             logger.info("Gemini API client initialized successfully")
@@ -64,13 +61,11 @@ class GeneratorService:
             raise
 
     def _setup_output_directory(self):
-        """Setup output directory for generated images."""
         self.output_dir = config.output_dir
         self.output_dir.mkdir(exist_ok=True)
         logger.info(f"Output directory configured: {self.output_dir}")
 
     def _initialize_models(self):
-        """Initialize Gemini models with proper validation."""
         self.text_model_name = config.text_model_name
 
         self.image_model_name = config.image_model_name
@@ -82,7 +77,6 @@ class GeneratorService:
             logger.warning(f"Model validation failed: {e}")
 
     def _validate_models(self):
-        """Validate that required models are available."""
         try:
             test_response = self.client.models.generate_content(
                 model=self.text_model_name,
@@ -118,24 +112,39 @@ class GeneratorService:
         - Token management
         - Response validation
         """
+        logger.info(
+            f"[{campaign_id}] Starting text generation for prompt: {prompt[:50]}..."
+        )
+
+        enhanced_prompt = create_marketing_prompt(prompt)
+
+        def should_retry_api(error: Exception, _: int) -> bool:
+            error_str = str(error).lower()
+            if 'quota' in error_str or 'authentication' in error_str:
+                return False
+            return True
+
         try:
-            logger.info(
-                f"[{campaign_id}] Starting text generation for prompt: {prompt[:50]}..."
-            )
-
-            enhanced_prompt = create_marketing_prompt(prompt)
-
-            response = await asyncio.to_thread(
-                self.client.models.generate_content,
-                model=self.text_model_name,
-                contents=enhanced_prompt,
-                config=types.GenerateContentConfig(
-                    max_output_tokens=1500,
-                    temperature=0.7,
-                    top_p=0.9,
-                    top_k=40,
-                    stop_sequences=["\n\n---", "\n\nEND"],
+            response = await with_exponential_backoff(
+                lambda: asyncio.to_thread(
+                    self.client.models.generate_content,
+                    model=self.text_model_name,
+                    contents=enhanced_prompt,
+                    config=types.GenerateContentConfig(
+                        max_output_tokens=1500,
+                        temperature=0.7,
+                        top_p=0.9,
+                        top_k=40,
+                        stop_sequences=["\n\n---", "\n\nEND"],
+                    ),
                 ),
+                RetryOptions(
+                    max_retries=3,
+                    initial_delay_ms=2000,
+                    max_delay_ms=30000,
+                    should_retry=should_retry_api
+                ),
+                f"Gemini text generation for {campaign_id}"
             )
 
             if not response.candidates or not response.candidates[0].content.parts:
@@ -158,35 +167,41 @@ class GeneratorService:
             )
 
     async def generate_image(self, prompt: str, campaign_id: str) -> str:
-        """
-        Generate images using Gemini 2.0 Flash image generation model.
+        logger.info(
+            f"[{campaign_id}] Starting image generation for prompt: {prompt[:50]}..."
+        )
 
-        Implements best practices:
-        - Optimized prompt engineering for image generation
-        - Proper multimodal response handling
-        - Image processing and storage
-        - Comprehensive error handling
-        """
+        image_prompt = create_image_prompt(prompt)
+
+        def should_retry_api(error: Exception, _: int) -> bool:
+            error_str = str(error).lower()
+            if 'quota' in error_str or 'authentication' in error_str:
+                return False
+            return True
+
         try:
-            logger.info(
-                f"[{campaign_id}] Starting image generation for prompt: {prompt[:50]}..."
-            )
-
-            image_prompt = create_image_prompt(prompt)
-
-            response = await asyncio.to_thread(
-                self.client.models.generate_content,
-                model=self.image_model_name,
-                contents=image_prompt,
-                config=types.GenerateContentConfig(
-                    response_modalities=[
-                        "TEXT",
-                        "IMAGE",
-                    ],
-                    max_output_tokens=200,
-                    temperature=0.8,
-                    top_p=0.95,
+            response = await with_exponential_backoff(
+                lambda: asyncio.to_thread(
+                    self.client.models.generate_content,
+                    model=self.image_model_name,
+                    contents=image_prompt,
+                    config=types.GenerateContentConfig(
+                        response_modalities=[
+                            "TEXT",
+                            "IMAGE",
+                        ],
+                        max_output_tokens=200,
+                        temperature=0.8,
+                        top_p=0.95,
+                    ),
                 ),
+                RetryOptions(
+                    max_retries=3,
+                    initial_delay_ms=2000,
+                    max_delay_ms=30000,
+                    should_retry=should_retry_api
+                ),
+                f"Gemini image generation for {campaign_id}"
             )
 
             image_path = await self._process_image_response(
@@ -212,11 +227,9 @@ class GeneratorService:
     async def _process_image_response(
         self, response, campaign_id: str, prompt: str
     ) -> Optional[str]:
-        """Process multimodal response and extract image data."""
         return process_image_response(response, campaign_id, self.output_dir, prompt)
 
     def get_health_status(self) -> Dict[str, Any]:
-        """Get comprehensive health status of the service."""
         return {
             "status": "healthy",
             "timestamp": datetime.now().isoformat(),
@@ -246,15 +259,6 @@ except Exception as e:
 
 @app.post("/generate", response_model=GenerationResponse)
 async def generate_content(request: GenerationRequest):
-    """
-    Generate marketing content including text and images.
-
-    This endpoint implements the complete content generation workflow:
-    1. Validates input parameters
-    2. Generates high-quality text using Gemini 2.0 Flash
-    3. Creates professional images using Gemini image generation
-    4. Returns structured response with generated assets
-    """
     campaign_id = request.campaignId
     prompt = request.prompt
 
@@ -284,15 +288,6 @@ async def generate_content(request: GenerationRequest):
 
 @app.get("/health")
 async def health_check():
-    """
-    Comprehensive health check endpoint.
-
-    Returns detailed status information about:
-    - Service health
-    - Model availability
-    - API connectivity
-    - Storage accessibility
-    """
     try:
         health_status = generator_service.get_health_status()
         return health_status
@@ -307,7 +302,6 @@ async def health_check():
 
 @app.get("/")
 async def root():
-    """Root endpoint with service information."""
     return {
         "service": "Solara AI Generator",
         "version": "1.0.0",

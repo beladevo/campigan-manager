@@ -72,12 +72,9 @@ export class CampaignService {
     let campaignData: CampaignResultMessage;
 
     try {
-      // Handle different message formats
       if (message.data) {
-        // NestJS microservice format: {pattern: "campaign.result", data: {...}}
         campaignData = message.data;
       } else if (message.campaignId) {
-        // Direct format
         campaignData = message;
       } else {
         this.logger.error(
@@ -120,7 +117,6 @@ export class CampaignService {
         dbError
       );
       this.logger.error(`Database error stack: ${dbError.stack}`);
-      // Could potentially publish to a dead letter queue here
     }
   }
 

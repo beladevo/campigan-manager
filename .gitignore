@@ -123,6 +123,3 @@ rabbitmq-data/
 .mypy_cache/
 .dmypy.json
 dmypy.json
-
-# Claude Code project instructions
-CLAUDE.md

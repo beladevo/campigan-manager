@@ -6,6 +6,7 @@ import {
 } from "@nestjs/microservices";
 import { CampaignGenerationMessage, CampaignResultMessage } from "./types";
 import { ConfigService } from "../config/config.service";
+import { withExponentialBackoff } from "../utils/exponential-backoff";
 
 @Injectable()
 export class RabbitMQService implements OnApplicationShutdown {
@@ -17,7 +18,7 @@ export class RabbitMQService implements OnApplicationShutdown {
       transport: Transport.RMQ,
       options: {
         urls: [this.configService.rabbitmqUrl],
-        queue: "campaign.generate", // Queue for publishing messages
+        queue: "campaign.generate",
         queueOptions: {
           durable: true,
         },
@@ -28,9 +29,18 @@ export class RabbitMQService implements OnApplicationShutdown {
       },
     });
 
-    // Connect the client immediately to detect connection issues
-    this.client.connect().catch((error) => {
-      this.logger.error(`Failed to connect RabbitMQ client: ${error}`);
+    withExponentialBackoff(
+      () => this.client.connect(),
+      {
+        maxRetries: 5,
+        initialDelayMs: 2000,
+        shouldRetry: (error: any) => {
+          return !error.message?.includes('ACCESS_REFUSED');
+        }
+      },
+      'RabbitMQ client connection'
+    ).catch((error) => {
+      this.logger.error(`Failed to connect RabbitMQ client after retries: ${error}`);
     });
 
     this.logger.log(
@@ -51,32 +61,37 @@ export class RabbitMQService implements OnApplicationShutdown {
   async publishCampaignGeneration(
     message: CampaignGenerationMessage
   ): Promise<void> {
-    try {
-      this.logger.log(
-        `Publishing campaign generation message: ${JSON.stringify(message)}`
-      );
+    this.logger.log(
+      `Publishing campaign generation message: ${JSON.stringify(message)}`
+    );
 
-      // Ensure client is connected
-      if (!this.client) {
-        throw new Error("RabbitMQ client not initialized");
-      }
+    return withExponentialBackoff(
+      async () => {
+        if (!this.client) {
+          throw new Error("RabbitMQ client not initialized");
+        }
 
-      // Connect if not already connected
-      await this.client.connect();
+        await this.client.connect();
 
-      const result = await this.client
-        .emit("campaign.generate", message)
-        .toPromise();
-      this.logger.log(
-        `Successfully published campaign generation message for campaign: ${message.campaignId}`
-      );
-      this.logger.log(`Publish result: ${JSON.stringify(result)}`);
-    } catch (error) {
-      this.logger.error(
-        `Failed to publish campaign generation message: ${error}`
-      );
-      this.logger.error(`Error stack: ${error.stack}`);
-      throw error;
-    }
+        const result = await this.client
+          .emit("campaign.generate", message)
+          .toPromise();
+        
+        this.logger.log(
+          `Successfully published campaign generation message for campaign: ${message.campaignId}`
+        );
+        this.logger.log(`Publish result: ${JSON.stringify(result)}`);
+        
+        return result;
+      },
+      {
+        maxRetries: 3,
+        initialDelayMs: 1000,
+        shouldRetry: (error: any) => {
+          return !error.message?.includes('validation');
+        }
+      },
+      `Publishing campaign message ${message.campaignId}`
+    );
   }
 }

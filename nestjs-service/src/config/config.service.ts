@@ -68,9 +68,6 @@ export class ConfigService {
     return process.env.LOG_LEVEL || "info";
   }
 
-  /**
-   * Get sanitized RabbitMQ URL for logging (hides password)
-   */
   get rabbitmqUrlForLogging(): string {
     return this.rabbitmqUrl.replace(/:[^:@]*@/, ":***@");
   }

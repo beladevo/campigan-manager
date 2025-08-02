@@ -20,11 +20,4 @@ export class CampaignController {
     this.logger.log(`Fetching campaign with ID: ${id}`);
     return this.campaignService.findOne(id);
   }
-
-  @Post('test-queue')
-  async testQueue(@Body() body: { message: string }) {
-    this.logger.log(`Testing queue with message: ${body.message}`);
-    // This is just for testing the queue connection
-    return { status: 'Message sent for testing', message: body.message };
-  }
 }

@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
-"""
-Simple test script for the Solara AI campaign system
-"""
 
 import requests
 import json
 import time
 
 def test_campaign_creation():
-    """Test creating a new campaign"""
     url = "http://localhost:3000/campaigns"
     payload = {
         "userId": "test-user-123",
@@ -33,7 +29,6 @@ def test_campaign_creation():
         return None
 
 def test_campaign_status(campaign_id):
-    """Test fetching campaign status"""
     url = f"http://localhost:3000/campaigns/{campaign_id}"
     
     print(f"\nFetching campaign status...")
@@ -53,7 +48,6 @@ def test_campaign_status(campaign_id):
         return None
 
 def test_python_health():
-    """Test Python service health"""
     url = "http://localhost:8000/health"
     
     print(f"\nChecking Python service health...")
@@ -74,19 +68,16 @@ def test_python_health():
 def main():
     print("=== Solara AI Campaign System Test ===\n")
     
-    # Test Python service health
     health = test_python_health()
     if not health:
         print("Python service is not available. Make sure Docker Compose is running.")
         return
     
-    # Create a campaign
     campaign_id = test_campaign_creation()
     if not campaign_id:
         print("Failed to create campaign. Check NestJS service.")
         return
     
-    # Poll campaign status
     print(f"\nPolling campaign {campaign_id} status...")
     for i in range(10):
         campaign = test_campaign_status(campaign_id)

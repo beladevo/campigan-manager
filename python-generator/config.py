@@ -7,13 +7,11 @@ logger = logging.getLogger(__name__)
 
 
 class Config:
-    """Centralized configuration management for python-generator service."""
 
     def __init__(self):
         self._validate_environment()
 
     def _validate_environment(self):
-        """Validate that all required environment variables are present."""
         required_vars = ["GEMINI_API_KEY"]
         missing_vars = []
 
@@ -32,41 +30,33 @@ class Config:
 
     @property
     def gemini_api_key(self) -> str:
-        """Get Gemini API key."""
         return os.getenv("GEMINI_API_KEY")
 
     @property
     def output_dir(self) -> Path:
-        """Get output directory path."""
         return Path(os.getenv("OUTPUT_DIR", "/app/output"))
 
     @property
     def text_model_name(self) -> str:
-        """Get text generation model name."""
         return os.getenv("GEMINI_TEXT_MODEL", "gemini-2.0-flash")
 
     @property
     def image_model_name(self) -> str:
-        """Get image generation model name."""
         return os.getenv(
             "GEMINI_IMAGE_MODEL", "gemini-2.0-flash-preview-image-generation"
         )
 
     @property
     def log_level(self) -> str:
-        """Get logging level."""
         return os.getenv("LOG_LEVEL", "INFO").upper()
 
     @property
     def server_host(self) -> str:
-        """Get server host."""
         return os.getenv("SERVER_HOST", "0.0.0.0")
 
     @property
     def server_port(self) -> int:
-        """Get server port."""
         return int(os.getenv("SERVER_PORT", "8000"))
 
 
-# Global config instance
 config = Config()

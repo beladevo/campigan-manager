@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 
 def create_marketing_prompt(user_prompt: str) -> str:
-    """Create enhanced marketing prompt for text generation."""
     return f"""
 You are a world-class marketing strategist and copywriter with expertise in persuasive content creation. Your task is to transform the given prompt into compelling marketing content that drives engagement and conversions.
 
@@ -47,7 +46,6 @@ Begin creating exceptional marketing content now:
 
 
 def create_image_prompt(user_prompt: str) -> str:
-    """Create optimized image generation prompt."""
     return f"""
 Create a stunning, professional-grade marketing image based on this concept: {user_prompt}
 
@@ -75,7 +73,6 @@ Generate an exceptional, commercially-viable marketing image now:
 
 
 def create_enhanced_placeholder(campaign_id: str, output_dir: Path, prompt: str = "") -> str:
-    """Create enhanced placeholder image with professional appearance."""
     try:
         img = Image.new('RGB', (1024, 1024), color='#f0f8ff')
         draw = ImageDraw.Draw(img)
@@ -125,7 +122,6 @@ def create_enhanced_placeholder(campaign_id: str, output_dir: Path, prompt: str 
 
 
 def process_image_response(response, campaign_id: str, output_dir: Path, prompt: str) -> Optional[str]:
-    """Process image response and save image."""
     try:
         if not response.candidates or not response.candidates[0].content.parts:
             return None
